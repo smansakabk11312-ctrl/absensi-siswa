@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <!-- Agar bisa dipasang ke layar utama HP (Add to Home Screen) & tampil seperti aplikasi native -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Absensi Siswa">
+  <meta name="theme-color" content="#1E3A8A">
+  <title>Absensi Siswa</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+
+  
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Loading Overlay -->
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="spinner-border text-primary" role="status"></div>
+    <p class="mt-3">Memuat Absensi Siswa…</p>
+  </div>
+
+  <!-- Sidebar (tersembunyi sampai login) -->
+  <nav id="sidebar" class="sidebar" style="display:none;">
+    <div class="sidebar-header">
+      <div class="app-logo"><i class="bi bi-mortarboard-fill"></i></div>
+      <div>
+        <h5 id="appTitle">Absensi Siswa</h5>
+        <span class="sidebar-sub" id="sidebarRoleBadge">-</span>
+      </div>
+    </div>
+    <ul id="sidebarNav" class="sidebar-nav"><!-- diisi dinamis oleh renderNavigation() --></ul>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="avatar-circle" id="sidebarUserInitial">-</div>
+        <div>
+          <div class="sidebar-user-name" id="sidebarUserName">-</div>
+          <div class="sidebar-user-role" id="sidebarUserRole">-</div>
+        </div>
+      </div>
+      <a href="javascript:void(0)" onclick="handleLogout()" class="btn-logout">
+        <i class="bi bi-box-arrow-left"></i> Keluar
+      </a>
+    </div>
+  </nav>
+  <div class="sidebar-overlay" onclick="closeSidebar()"></div>
+
+  <!-- Main Content -->
+  <main id="mainContent" class="main-content full">
+    <div class="topbar" id="topbar" style="display:none;">
+      <button class="btn-icon" onclick="toggleSidebar()"><i class="bi bi-list fs-4"></i></button>
+      <h6 id="pageTitle" class="mb-0">Dashboard</h6>
+      <span></span>
+    </div>
+
+    <div id="app-container"><!-- seluruh halaman disuntikkan di sini oleh navigateTo() --></div>
+  </main>
+
+  <!-- Modal: Form Master Data -->
+  <div class="modal fade" id="entityModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="entityModalTitle">Tambah Data</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" id="entityModalBody"></div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
+          <button type="button" class="btn btn-primary" id="entityModalSaveBtn" onclick="saveEntityForm()">
+            <i class="bi bi-check-lg"></i> Simpan
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Konfirmasi -->
+  <div class="modal fade" id="confirmModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="confirmModalTitle">Konfirmasi</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" id="confirmModalBody">Apakah Anda yakin?</div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
+          <button type="button" class="btn btn-danger" id="confirmModalBtn">Ya, Lanjutkan</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Impor Data -->
+  <div class="modal fade" id="importModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Impor Data Massal (.xlsx)</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small">Unduh template Excel terlebih dahulu, isi data sesuai kolom, lalu unggah kembali di sini.</p>
+          <input type="file" id="importFileInput" class="form-control" accept=".xlsx,.xls">
+          <div class="form-check mt-3">
+            <input class="form-check-input" type="checkbox" id="importOverwriteCheck">
+            <label class="form-check-label" for="importOverwriteCheck">Timpa data yang sudah ada (duplikat)</label>
+          </div>
+          <div id="importResultBox" class="mt-3"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Tutup</button>
+          <button type="button" class="btn btn-primary" onclick="processImportFile()">
+            <i class="bi bi-upload"></i> Proses Impor
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index:2000;">
+    <div id="appToast" class="toast" role="alert">
+      <div class="toast-header">
+        <i class="bi bi-info-circle-fill me-2" id="toastIcon"></i>
+        <strong class="me-auto" id="toastTitle">Notifikasi</strong>
+        <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+      </div>
+      <div class="toast-body" id="toastBody"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/gas-shim.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
