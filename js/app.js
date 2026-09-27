@@ -867,7 +867,7 @@ function renderAdminWaliKelas() {
 function renderSekretarisAbsensi() {
   const tanggal = todayStr();
   const kelasInfo = (AppState.master.kelas || []).find(k => k.ID === AppState.kelasId) || {};
-  const siswaKelas = (AppState.master.siswa || []).slice().sort((a,b) => safeCompare(a.NomorAbsen, b.NomorAbsen));
+  const siswaKelas = (AppState.master.siswa || []).slice().sort((a, b) => safeCompare(a.Nama, b.Nama));
 
   setContainer(`
     <div class="page-hero">
@@ -1020,7 +1020,7 @@ function renderSusulanForm(tanggal, existingRows) {
   const sudahAdaMap = {};
   existingRows.forEach(r => { sudahAdaMap[r.SiswaID] = r.Status; });
 
-  const siswaKelas = (AppState.master.siswa || []).slice().sort((a, b) => safeCompare(a.NomorAbsen, b.NomorAbsen));
+  const siswaKelas = (AppState.master.siswa || []).slice().sort((a, b) => safeCompare(a.Nama, b.Nama));
   const belumAda = siswaKelas.filter(s => !sudahAdaMap[s.ID]);
   const pillClass = { Hadir: 'pill-hadir', Sakit: 'pill-sakit', Izin: 'pill-izin', Alpa: 'pill-alpa' };
 
