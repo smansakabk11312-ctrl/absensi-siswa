@@ -19,9 +19,38 @@
 (function () {
   'use strict';
 
-  if (typeof GAS_URL === 'undefined' || !GAS_URL) {
-    console.error('[gas-shim] GAS_URL belum diisi di js/config.js — semua panggilan API akan gagal.');
+  // Bentuk URL Web App Apps Script yang valid (akun pribadi maupun domain Workspace):
+  //   https://script.google.com/macros/s/<ID>/exec
+  //   https://script.google.com/a/macros/<domain>/s/<ID>/exec
+  var GAS_URL_PATTERN = /^https:\/\/script\.google\.com\/(a\/macros\/[^\/]+|macros)\/s\/[A-Za-z0-9_-]+\/exec$/;
+  var REQUEST_TIMEOUT_MS = 60000; // GAS bisa lambat saat "cold start" / impor data besar
+
+  var MSG_NOT_CONFIGURED =
+    'Alamat backend belum diatur. Buka file js/config.js di repository, ganti nilai GAS_URL dengan URL Web App ' +
+    'Apps Script (yang berakhiran /exec), lalu simpan/commit dan tunggu deploy selesai.';
+
+  function isGasUrlConfigured() {
+    return typeof GAS_URL === 'string' && GAS_URL_PATTERN.test(GAS_URL.trim());
   }
+
+  if (!isGasUrlConfigured()) {
+    console.error('[gas-shim] GAS_URL di js/config.js belum valid (nilai saat ini: "' +
+      (typeof GAS_URL === 'undefined' ? '(tidak terdefinisi)' : GAS_URL) + '"). Semua panggilan API akan ditolak.');
+  }
+
+  /** Banner peringatan permanen di atas halaman bila backend belum dikonfigurasi. */
+  function showConfigBannerIfNeeded() {
+    if (isGasUrlConfigured() || document.getElementById('gasConfigBanner')) return;
+    var banner = document.createElement('div');
+    banner.id = 'gasConfigBanner';
+    banner.setAttribute('role', 'alert');
+    banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:100000;background:#b91c1c;color:#fff;' +
+      'padding:.7rem 1rem;font:600 .85rem/1.4 Inter,system-ui,sans-serif;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.25);';
+    banner.textContent = '⚠️ Konfigurasi belum lengkap — ' + MSG_NOT_CONFIGURED;
+    document.body.appendChild(banner);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', showConfigBannerIfNeeded);
+  else showConfigBannerIfNeeded();
 
   /**
    * Normalisasi respons server jadi bentuk {success,data,message} yang PASTI valid,
@@ -38,16 +67,47 @@
     return res;
   }
 
+  /**
+   * Panggil satu aksi backend. Setiap jenis kegagalan diberi pesan yang menjelaskan
+   * PENYEBAB dan LANGKAH PERBAIKANNYA, bukan sekadar kode HTTP mentah.
+   */
   async function callApi(action, params) {
-    const res = await fetch(GAS_URL, {
-      method: 'POST',
-      // WAJIB text/plain — Content-Type application/json memicu CORS preflight (OPTIONS)
-      // yang tidak bisa ditangani Google Apps Script Web App.
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: action, params: params })
-    });
-    if (!res.ok) throw new Error('HTTP ' + res.status + ' dari server.');
-    const json = await res.json();
+    if (!isGasUrlConfigured()) throw new Error(MSG_NOT_CONFIGURED);
+
+    var controller = new AbortController();
+    var timer = setTimeout(function () { controller.abort(); }, REQUEST_TIMEOUT_MS);
+    var res;
+    try {
+      res = await fetch(GAS_URL.trim(), {
+        method: 'POST',
+        // WAJIB text/plain — Content-Type application/json memicu CORS preflight (OPTIONS)
+        // yang tidak bisa ditangani Google Apps Script Web App.
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: action, params: params }),
+        signal: controller.signal
+      });
+    } catch (err) {
+      if (err && err.name === 'AbortError') {
+        throw new Error('Server terlalu lama merespons (lebih dari ' + (REQUEST_TIMEOUT_MS / 1000) + ' detik). Coba lagi sebentar lagi.');
+      }
+      throw new Error('Tidak dapat terhubung ke server. Periksa koneksi internet Anda lalu coba lagi. ' +
+        'Jika masalah berulang, pastikan Web App di Apps Script di-deploy dengan "Who has access: Anyone".');
+    } finally {
+      clearTimeout(timer);
+    }
+
+    if (!res.ok) {
+      throw new Error('Server backend menjawab HTTP ' + res.status + '. Periksa GAS_URL di js/config.js dan pastikan deployment Web App masih aktif.');
+    }
+
+    var text = await res.text();
+    var json;
+    try {
+      json = JSON.parse(text);
+    } catch (e) {
+      throw new Error('Backend tidak mengembalikan data JSON. Kemungkinan URL bukan URL /exec yang benar, ' +
+        'akses deployment belum "Anyone", atau Kode.gs versi REST API belum di-deploy ulang.');
+    }
     return normalizeResponse(json);
   }
 
@@ -75,15 +135,22 @@
         // Properti apapun selain withSuccessHandler/withFailureHandler dianggap
         // nama aksi backend — persis seperti memanggil google.script.run.namaFungsi(...)
         return function (...args) {
-          callApi(prop, args)
-            .then(function (safeRes) {
-              if (successHandler) successHandler(safeRes);
-            })
-            .catch(function (err) {
-              console.error('[gas-shim] Error memanggil aksi "' + prop + '":', err);
+          callApi(prop, args).then(
+            function (safeRes) {
+              if (!successHandler) return;
+              try { successHandler(safeRes); }
+              catch (handlerErr) {
+                // Sama seperti google.script.run asli: error di dalam handler sukses bukan kegagalan server.
+                console.error('[gas-shim] Error di handler sukses untuk aksi "' + prop + '":', handlerErr);
+                if (typeof showToast === 'function') showToast('Error', handlerErr.message || 'Terjadi kesalahan saat memproses data.', 'danger');
+              }
+            },
+            function (err) {
+              console.error('[gas-shim] Gagal memanggil aksi "' + prop + '":', err);
               if (failureHandler) failureHandler(err);
               else if (typeof showToast === 'function') showToast('Error', err.message || 'Gagal menghubungi server.', 'danger');
-            });
+            }
+          );
         };
       }
     });

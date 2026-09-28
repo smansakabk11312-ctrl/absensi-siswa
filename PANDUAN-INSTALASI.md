@@ -74,7 +74,9 @@ Ikuti urutan ini: **Backend dulu, baru Frontend** (frontend butuh URL backend un
 | Gejala | Kemungkinan penyebab |
 |---|---|
 | Halaman blank / form login tidak muncul | `css/style.css` atau `js/*.js` 404 — struktur folder rusak saat push (lihat panduan GitHub Pages, bagian "Prosedur Perbaikan") |
-| Login gagal terus, Network tab kosong | `js/config.js` belum diisi URL backend yang benar |
+| Banner merah "Konfigurasi belum lengkap", atau notifikasi "Alamat backend belum diatur"; di Console ada request ke `/PASTE_URL_EXEC_APPS_SCRIPT_DI_SINI` yang 404 | `js/config.js` masih berisi teks placeholder. Ganti `GAS_URL` dengan URL `/exec`, commit & push, tunggu hosting selesai deploy, lalu Ctrl+Shift+R |
+| Notifikasi "Backend tidak mengembalikan data JSON" | URL bukan URL `/exec` yang benar, akses deployment belum **Anyone**, atau `Kode.gs` versi REST belum di-deploy ulang |
+| Notifikasi "Tidak dapat terhubung ke server" | Internet terputus, atau deployment Web App tidak diatur **Who has access: Anyone** |
 | Error CORS di Console | Pastikan **tidak** mengubah header `Content-Type` di `gas-shim.js` — harus tetap `text/plain;charset=utf-8` |
 | Data tidak muncul padahal login sukses | Backend belum di-deploy ulang setelah update `Kode.gs`, atau `setupAppEnvironment()` belum dijalankan |
 | Situs tampil versi lama setelah update | Cache browser — tekan **Ctrl+Shift+R** |

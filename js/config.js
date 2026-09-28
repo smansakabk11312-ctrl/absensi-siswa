@@ -1,9 +1,18 @@
 /**
- * KONFIGURASI — isi dengan URL /exec hasil Deploy Web App dari Apps Script.
- * Ini SATU-SATUNYA file yang perlu diubah setiap kali URL backend berganti
- * (misalnya setelah redeploy Web App menghasilkan URL baru).
+ * KONFIGURASI — WAJIB diisi sebelum aplikasi bisa dipakai.
  *
- * Cara mendapatkan URL ini: buka project Apps Script → Deploy → Manage
- * deployments → salin URL yang diakhiri "/exec".
+ * Ganti teks di bawah dengan URL Web App Apps Script Anda (berakhiran /exec).
+ * Contoh yang BENAR:
+ *   const GAS_URL = 'https://script.google.com/macros/s/AKfycbxxxxxxxxxxxxxxxxxxxxxxxxxx/exec';
+ *
+ * Cara mendapatkannya: buka project Apps Script → Deploy → Manage deployments →
+ * salin "Web app URL". Tes dulu di tab browser baru — harus muncul teks JSON
+ * {"success":true,...,"message":"Absensi Siswa API aktif..."}, bukan halaman error.
+ *
+ * Setelah URL diganti: commit & push → tunggu hosting (GitHub Pages/Vercel)
+ * selesai deploy → tekan Ctrl+Shift+R di browser.
+ *
+ * Jika URL masih berisi teks PASTE_..., aplikasi akan menampilkan banner merah
+ * "Konfigurasi belum lengkap" dan menolak semua permintaan login.
  */
-const GAS_URL = 'PASTE_URL_EXEC_APPS_SCRIPT_DI_SINI';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbzxTXmYzsODkslBBJslt1JVS4lmyap-qDsLok6esbobpnhpYpwybkGoYpilaRJixjBs/exec';
